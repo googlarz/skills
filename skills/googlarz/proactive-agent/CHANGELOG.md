@@ -1,5 +1,26 @@
 # Changelog — proactive-agent
 
+## [2.0.0] — 2025-02-19
+
+### Added
+- `daemon.py`: background process (launchd/systemd), scans every 15 min, sends system/Telegram notifications, queues nudges to `pending_nudges.json`
+- `install_daemon.sh`: one-command launchd (macOS) or systemd user timer (Linux) install
+- `memory.py`: SQLite-backed outcome store with TF-IDF semantic search, pattern analysis, open action items, quarterly summary, user rules storage
+- `conflict_detector.py`: detects overlapping events, overloaded days (4+ events), back-to-back runs (3+ with <10 min gaps)
+- `cross_skill.py`: live GitHub PR/issue context and Notion page lookup at prep time; pending_nudges consumer
+- `rules_engine.py`: natural language rule parser — converts "never bother me about standups" to structured JSON rules applied at scoring time
+- `intelligence_loop.py`: stale action item detection, auto-schedule follow-up calendar events, weekly Monday digest, quarterly summary trigger
+- clawhub OAuth setup path in `setup.sh` — downloads Google credentials automatically from `clawhub_token` in config, no Google Cloud Console required
+- `config.json`: `feature_*` flags for all new subsystems, `daemon_interval_minutes`, `notification_channels`, `telegram`, `clawhub_token`
+- `pending_nudges.json`: daemon → conversation bridge for surfacing background-detected nudges
+
+### Changed
+- SKILL.md rewritten for v2.0 with v1.x vs v2.0 comparison table
+- Memory layer: `scan_calendar.py` and `capture_outcome.py` now call `memory.py` for pattern data instead of reading flat JSON directly
+- Rules applied automatically by scan_calendar.py via `memory.apply_rules()`
+
+---
+
 All notable changes to this skill are documented here.
 Format: [version] — date — summary
 

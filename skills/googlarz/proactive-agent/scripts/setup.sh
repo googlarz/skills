@@ -1,6 +1,6 @@
 #!/bin/bash
 # Proactive Agent — One-time setup
-# Supports: Google Calendar API | Nextcloud CalDAV
+# Supports: Google Calendar API | Nextcloud CalDAV | clawhub OAuth (mobile-first)
 
 set -e
 
@@ -29,6 +29,48 @@ if [ -f "$CONFIG" ]; then
   BACKEND=$(python3 -c "import json; d=json.load(open('$CONFIG')); print(d.get('calendar_backend','google'))" 2>/dev/null || echo "google")
 fi
 echo "📅 Calendar backend: $BACKEND"
+
+# ── clawhub OAuth (mobile-first) ──────────────────────────────────────────────
+# If clawhub_token is set in config, use it to download credentials automatically
+if [ -f "$CONFIG" ]; then
+  CLAWHUB_TOKEN=$(python3 -c "import json; d=json.load(open('$CONFIG')); print(d.get('clawhub_token',''))" 2>/dev/null || echo "")
+  if [ -n "$CLAWHUB_TOKEN" ] && [ "$CLAWHUB_TOKEN" != "None" ] && [ ! -f "$CREDS" ]; then
+    echo "🔑 Detected clawhub_token — downloading Google credentials automatically..."
+    python3 - << 'PYEOF'
+import json, urllib.request
+from pathlib import Path
+
+SKILL_DIR = Path.home() / ".openclaw/workspace/skills/proactive-agent"
+CONFIG_FILE = SKILL_DIR / "config.json"
+CREDS_FILE = SKILL_DIR / "credentials.json"
+
+with open(CONFIG_FILE) as f:
+    config = json.load(f)
+
+token = config.get("clawhub_token", "")
+if not token:
+    print("❌ No clawhub_token in config.json")
+    exit(1)
+
+try:
+    req = urllib.request.Request(
+        "https://clawhub.ai/api/oauth/google-calendar-credentials",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    )
+    resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
+    creds_data = resp.get("credentials")
+    if not creds_data:
+        print("❌ No credentials returned from clawhub. Connect Google Calendar at https://clawhub.ai/settings/integrations")
+        exit(1)
+    with open(CREDS_FILE, "w") as f:
+        json.dump(creds_data, f)
+    print("✅ Google credentials downloaded via clawhub OAuth")
+except Exception as e:
+    print(f"⚠️  clawhub credential fetch failed: {e}")
+    print("   Fall back: set credentials.json manually (see SKILL.md Setup section)")
+PYEOF
+  fi
+fi
 
 # Initialize config.json if missing
 if [ ! -f "$CONFIG" ]; then

@@ -7,6 +7,12 @@
   "calendar_threshold": 6,
   "feature_conversation": true,
   "feature_calendar": true,
+  "feature_daemon": true,
+  "feature_memory": true,
+  "feature_conflicts": true,
+  "feature_cross_skill": true,
+  "feature_rules": true,
+  "feature_intelligence_loop": true,
   "default_user_calendar": "",
   "timezone": "UTC",
   "user_email": "",
@@ -15,6 +21,13 @@
   "scan_days_ahead": 7,
   "scan_cache_ttl_minutes": 30,
   "openclaw_cal_id": "",
+  "daemon_interval_minutes": 15,
+  "notification_channels": ["openclaw", "system"],
+  "telegram": {
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "clawhub_token": "",
   "nextcloud": {
     "url": "",
     "username": "",
