@@ -1,0 +1,7 @@
+pre_checkin_offset=1 day
+post_checkin_offset=30 minutes
+conversation_threshold=5
+calendar_threshold=6
+feature_1_enabled=true
+feature_2_enabled=true
+default_user_calendar=

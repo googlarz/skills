@@ -1,4 +1,5 @@
 {
+  "calendar_backend": "google",
   "pre_checkin_offset_default": "1 day",
   "pre_checkin_offset_same_day": "1 hour",
   "post_checkin_offset": "30 minutes",
@@ -7,8 +8,17 @@
   "feature_conversation": true,
   "feature_calendar": true,
   "default_user_calendar": "",
+  "timezone": "UTC",
+  "user_email": "",
   "notes_destination": "local",
   "notes_path": "~/.openclaw/workspace/skills/proactive-agent/outcomes/",
   "scan_days_ahead": 7,
-  "openclaw_cal_id": ""
+  "scan_cache_ttl_minutes": 30,
+  "openclaw_cal_id": "",
+  "nextcloud": {
+    "url": "",
+    "username": "",
+    "password": "",
+    "openclaw_calendar_url": ""
+  }
 }

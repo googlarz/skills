@@ -1,30 +1,33 @@
 ---
 name: proactive-agent
+version: 3.0.0
 description: >
-  Proactive assistant that watches every conversation and scans Google Calendar to offer timely,
-  context-aware help. Manages a dedicated "OpenClaw" Google Calendar for pre/post check-ins.
-  Learns patterns from past events to improve timing and relevance. Generates agenda suggestions
-  and talking points at prep time. Captures outcomes and action items after events. Treats
-  recurring events differently from one-off high-stakes occasions.
-  Trigger this skill when: the user mentions any upcoming event, meeting, presentation, deadline,
-  interview, demo, travel, or recurring obligation; when deciding whether to proactively reach out
-  before or after a calendar event; or when the user asks to capture notes or action items.
+  Proactive life assistant that silently watches every conversation and your calendar to offer
+  timely, context-aware help — before you ask. Manages a dedicated "OpenClaw" calendar for
+  pre/post event check-ins. Learns your patterns over time. Auto-generates agenda and talking
+  points at prep time. Captures outcomes and action items after events. Treats weekly standups
+  differently from high-stakes investor demos. Supports Google Calendar API and Nextcloud CalDAV.
+  Trigger when: user mentions any upcoming event, meeting, presentation, deadline, interview,
+  demo, travel, or recurring obligation; when judging whether to proactively reach out; or when
+  capturing notes/action items after an event.
 ---
 
 # Proactive Agent
 
-## Purpose
+> The lobster that reaches out before you even know you need it.
 
-Turn OpenClaw from a reactive tool into a proactive partner that:
+## What it does
 
-1. **Monitors conversations** — silently scores every exchange for calendar-worthiness, asks once if threshold is met
-2. **Monitors calendar** — scans upcoming events and decides when to reach out proactively
-3. **Learns patterns** — remembers how past events went to get smarter about future interventions
-4. **Prepares you** — generates actual agenda suggestions and talking points at prep time
-5. **Captures outcomes** — writes follow-up notes/action items to your preferred notes destination
-6. **Handles recurrence intelligently** — treats weekly standups differently from one-off high-stakes events
-
-All check-ins are written to the dedicated **OpenClaw** Google Calendar.
+| Feature | Description |
+|---------|-------------|
+| **Conversation radar** | Silently scores every exchange 0–10. Asks once, briefly, if something calendar-worthy is detected. |
+| **Calendar monitoring** | Scans upcoming events and reaches out proactively when it matters. |
+| **Pattern learning** | Remembers how past events went. Gets smarter about when/how to intervene. |
+| **Auto prep** | At check-in time, generates actual agenda and talking points — not just "need help?" |
+| **Outcome capture** | After events, captures notes and action items to local JSON, Apple Notes, or Notion. |
+| **Recurring intelligence** | Suppresses low-value standups. Prioritises high-stakes recurring events. |
+| **Snooze & dismiss** | Respects "not now" across sessions. Never nags. |
+| **Dual backend** | Google Calendar API or Nextcloud CalDAV — user's choice. |
 
 ---
 
@@ -34,27 +37,44 @@ All check-ins are written to the dedicated **OpenClaw** Google Calendar.
 bash ~/.openclaw/workspace/skills/proactive-agent/scripts/setup.sh
 ```
 
-This script will:
-- Check for Python 3.8+ and install `google-api-python-client`, `google-auth-oauthlib`
-- Walk through Google OAuth (opens browser once)
-- Create the **OpenClaw** calendar if it doesn't exist
-- Save `OPENCLAW_CAL_ID` to `config.json`
+The setup script auto-detects the backend from `config.json` (`"calendar_backend": "google"` or `"nextcloud"`), installs dependencies, authenticates, and creates the **OpenClaw** calendar.
 
-**Google Cloud prerequisites** (one-time, ~3 minutes):
-1. Go to https://console.cloud.google.com → New project → "OpenClaw"
+### Google Calendar (default)
+
+Prerequisites (~3 min, one-time):
+1. https://console.cloud.google.com → New project "OpenClaw"
 2. Enable **Google Calendar API**
-3. Create **OAuth 2.0 credentials** (Desktop app) → download as `credentials.json`
-4. Move file: `mv ~/Downloads/credentials.json ~/.openclaw/workspace/skills/proactive-agent/credentials.json`
-5. Run `setup.sh`
+3. Create **OAuth 2.0 credentials** → Desktop app → download JSON
+4. `mv ~/Downloads/credentials.json ~/.openclaw/workspace/skills/proactive-agent/credentials.json`
+5. Run `setup.sh` — browser opens once for OAuth, then never again
+
+The script auto-reads your primary calendar email and sets `user_email` in `config.json`.
+
+### Nextcloud CalDAV
+
+1. In `config.json` set:
+   ```json
+   "calendar_backend": "nextcloud",
+   "nextcloud": {
+     "url": "https://your-nextcloud.com",
+     "username": "your-username",
+     "password": "your-app-password"
+   }
+   ```
+   Use an **app password** (Nextcloud Settings → Security), not your account password.
+2. Run `setup.sh` — connects, lists calendars, creates OpenClaw calendar, saves URL to config.
 
 ---
 
 ## Configuration
 
-Stored in `~/.openclaw/workspace/skills/proactive-agent/config.json`. Edit directly or tell OpenClaw in plain language.
+`~/.openclaw/workspace/skills/proactive-agent/config.json`
+
+Adjust any setting by telling OpenClaw in plain language — it will update the file.
 
 ```json
 {
+  "calendar_backend": "google",
   "pre_checkin_offset_default": "1 day",
   "pre_checkin_offset_same_day": "1 hour",
   "post_checkin_offset": "30 minutes",
@@ -63,240 +83,294 @@ Stored in `~/.openclaw/workspace/skills/proactive-agent/config.json`. Edit direc
   "feature_conversation": true,
   "feature_calendar": true,
   "default_user_calendar": "",
+  "timezone": "Europe/Berlin",
+  "user_email": "you@example.com",
   "notes_destination": "local",
   "notes_path": "~/.openclaw/workspace/skills/proactive-agent/outcomes/",
   "scan_days_ahead": 7,
-  "openclaw_cal_id": ""
+  "scan_cache_ttl_minutes": 30,
+  "openclaw_cal_id": "",
+  "nextcloud": {
+    "url": "",
+    "username": "",
+    "password": "",
+    "openclaw_calendar_url": ""
+  }
 }
 ```
 
-| Key | Default | Description |
+| Key | Default | What it does |
 |-----|---------|-------------|
-| `pre_checkin_offset_default` | 1 day | How far before event to schedule prep check-in |
-| `pre_checkin_offset_same_day` | 1 hour | Offset when event is today |
-| `post_checkin_offset` | 30 min | How long after event end to schedule follow-up |
-| `conversation_threshold` | 5 | Min score (0–10) to ask about creating check-in |
-| `calendar_threshold` | 6 | Min score (0–10) to proactively reach out |
-| `notes_destination` | local | Where to save outcomes: `local`, `apple-notes`, `notion` |
-| `scan_days_ahead` | 7 | How many days ahead to scan calendar |
+| `calendar_backend` | `google` | `google` or `nextcloud` |
+| `timezone` | `UTC` | IANA timezone, e.g. `Europe/Berlin`, `America/New_York` |
+| `user_email` | `""` | Used to detect external attendees. Auto-set by setup.sh for Google. |
+| `conversation_threshold` | `5` | Min score to ask about creating a check-in |
+| `calendar_threshold` | `6` | Min score to proactively reach out |
+| `scan_cache_ttl_minutes` | `30` | How long before re-scanning calendar (avoids API spam) |
+| `notes_destination` | `local` | `local`, `apple-notes`, or `notion` |
 
 ---
 
-## Feature 1 — Conversation Monitoring
+## Feature 1 — Conversation Radar
 
-### Scoring (run silently after every exchange)
+Run **silently** after every exchange. Never mention the scoring to the user.
 
-Score 0–10 whether this conversation warrants a calendar entry + check-in pair.
-
-| Score | Meaning | Action |
-|-------|---------|--------|
-| 0–4 | No signal | Say nothing |
-| 5–7 | Possible event | Ask once, briefly, at end of reply |
-| 8–10 | Clear event signal | Ask before anything else |
-
-**Signals that raise the score:**
+### Score 0–10
 
 | +Points | Signal | Examples |
 |---------|--------|---------|
-| +3 | Explicit future event | "I have a presentation Friday", "demo on the 23rd", "interview next week" |
-| +3 | Preparation language | "I need to prep", "working on slides", "getting ready for" |
-| +2 | Stress or importance markers | "really important", "nervous about", "big client", "first time" |
-| +2 | Deadline language | "due by", "needs to be done before", "deadline is" |
+| +3 | Explicit future event | "presentation Friday", "demo on the 23rd", "interview next week" |
+| +3 | Active preparation | "working on slides", "prepping for", "getting ready for" |
+| +2 | Importance / stress markers | "really important", "nervous about", "big client", "first time doing this" |
+| +2 | Hard deadline | "due by", "deadline is", "needs to ship before" |
 | +1 | Recurring obligation | "weekly standup", "quarterly review", "1:1 tomorrow" |
 | +1 | Post-event reflection | "just got out of", "the meeting went", "my talk is done" |
-| −2 | Hypothetical / past / general | "what if I had a meeting", "last year's conference" |
+| −2 | Hypothetical or historical | "what if I had a meeting", "last year's conference" |
 
-**Calibrated examples:**
-- "I have a big product demo with investors next Thursday" → **9** (explicit event + importance)
-- "I should probably prep for my weekly standup" → **5** (recurring + prep language)
-- "How do you structure a good presentation?" → **3** (general, no specific event)
-- "My talk yesterday went really well" → **2** (post-event reflection, already happened)
-- "I just booked flights for the conference next month" → **7** (explicit future + travel)
+**Calibrated examples (must match these scores ±1):**
 
-### Asking the user
+| Message | Score | Reason |
+|---------|-------|--------|
+| "Big investor demo Thursday" | 9 | explicit event + importance |
+| "I should prep for my standup" | 5 | recurring + prep language |
+| "How do you structure presentations?" | 3 | general, no specific event |
+| "My talk yesterday went well" | 2 | past, no action needed |
+| "Just booked flights for the conference" | 7 | explicit future + travel |
+| "Deadline for the feature is Friday" | 7 | explicit deadline |
+| "We might have a review at some point" | 2 | vague, no time anchor |
 
-One sentence, one question, at the end of your reply. Never stack asks.
+### Thresholds
 
-> "Sounds like you have a big investor demo on Thursday — want me to schedule a prep check-in and follow-up?"
+| Score | Action |
+|-------|--------|
+| 0–4 | Say nothing. Continue conversation. |
+| 5–7 | One sentence at the **end** of your reply. |
+| 8–10 | Ask **before** anything else. |
 
-> "Should I set up a prep reminder for your interview next week?"
+### Asking
 
-Never ask again about the same event in the same conversation unless the user brings it up.
+One sentence. One question. End of message.
 
-### If the user says yes
+> "Sounds like you have a big investor demo Thursday — want me to set up a prep check-in and follow-up?"
 
-1. Confirm inferred details (title, date/time) — ask only what's missing
-2. Ask which calendar to write the event to (skip if `default_user_calendar` is set)
-3. Run:
+> "Should I schedule a reminder before your interview next week?"
+
+Never ask twice about the same event in the same conversation. If declined, drop it entirely.
+
+### Creating check-ins
+
+When user says yes:
+1. Confirm inferred title and date/time — ask only what's missing
+2. Ask which calendar if `default_user_calendar` is unset
 
 ```bash
 python3 ~/.openclaw/workspace/skills/proactive-agent/scripts/create_checkin.py \
   --title "<event title>" \
-  --event-datetime "<ISO datetime>" \
+  --event-datetime "<ISO 8601 with timezone, e.g. 2025-03-15T14:00:00+01:00>" \
   --event-duration <minutes> \
   --user-calendar "<calendar name>"
 ```
 
-4. Confirm back with exact titles and times. Offer to adjust.
+Confirm back with **friendly time strings** (e.g. "Thursday Mar 13 at 9:00 AM CET"). Offer to adjust.
 
 ---
 
 ## Feature 2 — Calendar Monitoring
 
-### Scanning upcoming events
+At the start of each conversation, run:
 
 ```bash
 python3 ~/.openclaw/workspace/skills/proactive-agent/scripts/scan_calendar.py
 ```
 
-Returns JSON list of upcoming events with pre-computed scores and pattern data. Run at conversation start if last scan was > 30 minutes ago.
+Uses cache — only hits the API if last scan was > `scan_cache_ttl_minutes` ago. Reads `actionable` from the output (pre-filtered to score ≥ threshold, not snoozed).
 
-### Scoring calendar events (same 0–10 scale)
-
-Additional factors beyond conversation signals:
+### Calendar scoring factors
 
 | +Points | Factor |
 |---------|--------|
-| +2 | Duration > 60 minutes |
-| +2 | External attendees (different email domain) |
-| +2 | No description or agenda attached |
-| +2 | Event within 24 hours, no OpenClaw check-in exists |
-| +1 | Title contains: demo, presentation, interview, workshop, conference, launch, review, deadline |
-| −3 | Recurring event AND pattern shows low historical stakes (e.g. routine standup) |
-| +2 | Recurring event AND pattern shows high historical stakes (e.g. quarterly board review) |
+| +2 | Duration > 60 min |
+| +2 | External attendees detected |
+| +2 | No description or agenda |
+| +2 | Starts within 24 hours, no check-in yet |
+| +1 | Title has high-stakes keyword |
+| −1 | Title has routine keyword (standup, sync, scrum) |
+| −3 | Recurring, history shows 0 avg action items |
+| +2 | Recurring, history shows ≥ 3 avg action items |
+| −5 | OpenClaw check-in already exists |
+| (skip) | User declined this event |
 
 ### Reaching out
 
-If score ≥ `calendar_threshold` and no OpenClaw check-in exists for this event:
+If `actionable` list is non-empty, address the **highest-scored event first** when the user next speaks.
 
-> "You have a [event title] in [X hours/days]. Want me to help you prepare?"
+**Generic:**
+> "You have a [event title] in [X hours/days]. Want help preparing?"
 
-If it's a **recurring event with history**, be specific:
+**Recurring with history:**
+> "Your weekly 1:1 with Sarah is tomorrow. Last time you had 3 action items open — want to prep?"
 
-> "Your weekly 1:1 with Sarah is tomorrow. Last time you wanted to follow up on the Q3 roadmap — want to prep talking points?"
+**Post-event (when follow-up check-in is past due):**
+> "How did [event title] go? Want to capture notes or action items?"
 
-### Post-event follow-up
+### Snooze / dismiss
 
-When user opens conversation after a past-due OpenClaw follow-up event exists:
+If user says "not now" or "remind me later":
 
-> "How did [event title] go? Want to capture any notes or action items?"
+```bash
+# Snooze for 4 hours
+python3 scan_calendar.py --snooze <event_id> 4
+
+# Never ask again about this event
+python3 scan_calendar.py --dismiss <event_id>
+```
 
 ---
 
 ## Feature 3 — Pattern Learning
 
-All event outcomes are stored in:
+Outcomes stored at:
 ```
-~/.openclaw/workspace/skills/proactive-agent/outcomes/<YYYY-MM-DD>_<slug>.json
+~/.openclaw/workspace/skills/proactive-agent/outcomes/YYYY-MM-DD_slug.json
 ```
 
-Each outcome file contains:
+Schema:
 ```json
 {
-  "event_title": "...",
-  "event_datetime": "...",
-  "recurring_id": "...",
+  "event_title": "Investor Demo",
+  "event_datetime": "2025-03-15T14:00:00+01:00",
+  "recurring_id": "",
+  "event_type": "one_off_high_stakes",
+  "captured_at": "2025-03-15T16:05:00Z",
   "prep_done": true,
-  "outcome_notes": "...",
-  "action_items": [],
-  "sentiment": "positive|neutral|negative",
-  "follow_up_needed": false,
-  "tags": []
+  "outcome_notes": "Demo went well. Investors liked product.",
+  "action_items": ["Send deck", "Schedule follow-up call"],
+  "sentiment": "positive",
+  "follow_up_needed": true,
+  "tags": ["fundraising", "demo"]
 }
 ```
 
-### How patterns are used
-
-Before scheduling check-ins or reaching out, read past outcomes for the same `recurring_id` (or similar title):
-
+Fetch pattern history before scheduling:
 ```bash
-python3 ~/.openclaw/workspace/skills/proactive-agent/scripts/scan_calendar.py --patterns "<recurring_id>"
+python3 scan_calendar.py --patterns "<recurring_id>"
 ```
 
 Use patterns to:
-- **Adjust check-in timing** — if user consistently ignores prep check-ins 1 day before, try 2 hours before
-- **Skip low-value recurring events** — if last 4 standups had no action items and user said "fine", lower score by 3
-- **Raise stakes on recurring events with history** — if last board review had 6 action items, raise score by 2
-- **Personalize prep prompts** — reference what was important last time
+- **Adjust timing** — if user ignores 1-day prep check-ins, switch to 2-hour
+- **Suppress routine events** — if last 4 standups had zero action items, stop asking
+- **Escalate recurring high-stakes** — board review with 5 avg action items → always prep
+- **Personalise prompts** — reference open items from last outcome
 
 ---
 
 ## Feature 4 — Auto Agenda & Talking Points
 
-At prep check-in time, don't just ask "need help?" — generate a starting point based on:
-- Event title and description
-- Attendee list (if available)
-- Past outcomes for recurring events
-- Any context from recent conversations about this event
+At prep check-in time, don't just ask "need help?" — open with a concrete starting point.
 
-**Prep prompt template:**
+**Structure by event type:**
 
-> "Your [event title] is [in X hours / tomorrow]. Here's a starting point:
->
-> **Suggested agenda:**
-> 1. [inferred from title/description/past outcomes]
-> 2. ...
->
-> **Talking points to consider:**
-> - [from recent conversation context]
-> - [from last time's action items if recurring]
->
-> Want to work on any of these, or is there something else you want to prep?"
+| Type | Auto-generated content |
+|------|----------------------|
+| **Presentation / Demo** | Hook → Problem → Solution → Demo flow → CTA. Suggest what to cut if time is short. |
+| **Interview** | STAR-format story prompts based on role/company if mentioned. Common questions for the domain. |
+| **1:1** | Open action items from last outcome file. Blockers, wins, asks. |
+| **Standup** | Pull recent GitHub activity if github-skill is active. Yesterday / Today / Blockers. |
+| **Board / Investor** | Metrics to prepare. Narrative arc. Likely hard questions. |
+| **Workshop / Offsite** | Desired outcomes, pre-reads, icebreaker if relevant. |
+| **External meeting (no history)** | Research attendee's company/role. Key context to establish. |
 
-For **interviews**: suggest STAR-format story prompts based on role/company if mentioned.
-For **presentations**: suggest structure (hook, problem, solution, demo, CTA).
-For **1:1s**: surface open action items from last session's outcome file.
-For **standups**: pull any GitHub activity or recent work context if available.
+**Template:**
+
+> "Your [event] is [in X / tomorrow at TIME TZ].
+>
+> **Starting agenda:**
+> 1. [inferred item]
+> 2. [inferred item]
+>
+> **Talking points:**
+> - [from context / last outcomes / open action items]
+>
+> Want to work on any of these, or something else?"
+
+Keep the list to 3–5 items max. Never a wall of text.
+
+**Edge cases:**
+- All-day event with no time → don't offer timed check-ins; offer a "when's the best time to prep?" question instead
+- No-title event → ask "I see a calendar block — what is it? Want to prep?"
+- Event already has a detailed description → summarise it, don't duplicate it
 
 ---
 
 ## Feature 5 — Outcome Capture
 
-After the follow-up conversation, write the outcome:
+After the follow-up conversation:
 
 ```bash
 python3 ~/.openclaw/workspace/skills/proactive-agent/scripts/capture_outcome.py \
-  --event-title "<title>" \
-  --event-datetime "<ISO datetime>" \
-  --recurring-id "<id or empty>" \
-  --notes "<captured notes>" \
-  --action-items "<item1>|<item2>" \
-  --sentiment "positive|neutral|negative" \
-  --follow-up-needed "true|false"
+  --event-title "Investor Demo" \
+  --event-datetime "2025-03-15T14:00:00+01:00" \
+  --recurring-id "" \
+  --notes "Demo went well. Investors liked product." \
+  --action-items "Send deck|Schedule follow-up call|Update pricing page" \
+  --sentiment "positive" \
+  --follow-up-needed "true" \
+  --tags "fundraising,demo"
 ```
 
-Then sync to the user's preferred notes destination based on `notes_destination` config:
+**Always confirm before saving:**
+> "Want me to save these notes? I'll capture:
+> - 2 action items: Send deck, Schedule follow-up call
+> - Sentiment: positive
+> - Follow-up needed: yes"
 
-- **`local`**: writes JSON to `outcomes/` folder (always done regardless)
-- **`apple-notes`**: `osascript -e 'tell app "Notes" to make new note with properties {name:"...", body:"..."}'`
-- **`notion`**: calls Notion API if `notion-skill` is active
-
-Always confirm with the user before writing: *"Want me to save these notes? Here's what I'll capture: [summary]"*
+**Destinations:**
+| `notes_destination` | Where it goes |
+|---------------------|--------------|
+| `local` | `outcomes/` JSON (always written regardless) |
+| `apple-notes` | New note via AppleScript |
+| `notion` | Notion DB page via API (requires `NOTION_API_KEY` + `NOTION_OUTCOMES_DB_ID` env vars) |
 
 ---
 
 ## Recurring Event Intelligence
 
-Classify every event on first encounter:
+Classify every new event on first encounter. Store in outcome file under `"event_type"`.
 
-| Type | Detection | Behavior |
+| Type | Detection | Behaviour |
 |------|-----------|---------|
-| **Routine low-stakes** | Recurring + short + internal + history shows no action items | Suppress until pattern changes. Check in only every 4th occurrence. |
-| **Routine high-stakes** | Recurring + external OR history shows frequent action items | Always check in. Use last outcomes to personalize. |
-| **One-off standard** | Not recurring, internal, < 60 min | Standard scoring |
-| **One-off high-stakes** | Not recurring + external OR importance markers | Max prep attention. Offer full agenda prep. |
+| `routine_low_stakes` | Recurring + internal + avg 0 action items | Ask every 4th occurrence only. Suppress otherwise. |
+| `routine_high_stakes` | Recurring + external OR avg ≥ 2 action items | Always check in. Personalise using history. |
+| `one_off_standard` | Not recurring, < 60 min, internal | Standard scoring. Offer light prep. |
+| `one_off_high_stakes` | Not recurring + external OR importance signals | Maximum prep attention. Full agenda + talking points. |
 
-Store classification in outcome files under `"event_type"`.
+Classification upgrades automatically as history accumulates.
+
+---
+
+## Error Handling
+
+If any script exits with error JSON (`{"error": ...}`):
+
+| Error | What to tell user |
+|-------|------------------|
+| `calendar_backend_unavailable` | "I can't reach your calendar right now. Want me to try again, or continue without calendar features?" |
+| `failed_to_list_calendars` | "Having trouble reading your calendars. Check your connection and that setup.sh has been run." |
+| `failed_to_create_events` | "Couldn't create the check-in events — [detail]. Want to try again?" |
+| Setup not run | "Looks like the calendar isn't set up yet. Run: `bash ~/.openclaw/workspace/skills/proactive-agent/scripts/setup.sh`" |
+
+Never silently fail. Always surface the issue with a clear next step.
 
 ---
 
 ## Tone & Rules
 
-- **One question at a time.** Never stack multiple asks in one message.
-- **Never repeat** — don't ask about the same event twice in the same conversation.
-- **Always confirm** before creating calendar entries. Show exact title, date, time.
-- **Always confirm** before writing outcome notes. Show a summary of what will be saved.
-- **Respect "no"** — if user declines, drop it for that event entirely.
-- **Be brief** — check-in prompts ≤ 2 sentences. Agenda suggestions are a starting point, not a wall of text.
-- **Surface, don't overwhelm** — if multiple events need attention, address the most urgent one first.
-- The OpenClaw calendar is internal — never tell the user to look at it; surface its data through conversation only.
+- **One question at a time.** Never stack asks.
+- **Never repeat** the same event ask twice in one conversation.
+- **Always confirm** before writing calendar events — show title, date, friendly time + timezone.
+- **Always confirm** before writing outcome notes — show a bullet summary.
+- **Respect "no"** — dismissed permanently; "not now" snoozed per `--snooze`.
+- **Be brief** — check-in prompts ≤ 2 sentences. Agenda = starting point, not an essay.
+- **Surface, don't overwhelm** — multiple actionable events → address highest-scored first.
+- **Timezone-aware** — always display times in the user's `timezone` config, never UTC.
+- The OpenClaw calendar is internal — never tell users to open it. Surface its data in conversation only.

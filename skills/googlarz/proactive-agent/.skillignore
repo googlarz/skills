@@ -1,0 +1,10 @@
+# Never include these in clawhub uploads or zips
+token.json
+credentials.json
+outcomes/
+last_scan.json
+snoozed.json
+config.txt
+__pycache__/
+*.pyc
+.DS_Store
