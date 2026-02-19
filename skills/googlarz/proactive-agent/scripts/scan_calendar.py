@@ -13,6 +13,16 @@ Usage:
 import argparse
 import json
 import sys
+
+# Python version guard — must be first executable code
+if sys.version_info < (3, 8):
+    print(json.dumps({
+        "error": "python_version_too_old",
+        "detail": f"Python 3.8+ required. You have {sys.version}.",
+        "fix": "Install Python 3.8+: https://www.python.org/downloads/"
+    }))
+    sys.exit(1)
+
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -50,12 +60,37 @@ def load_outcomes(recurring_id=None) -> list:
 
 
 def load_snoozed() -> dict:
-    if SNOOZE_FILE.exists():
+    """Load snoozed entries, auto-purging expired (non-dismissed) ones."""
+    if not SNOOZE_FILE.exists():
+        return {}
+    try:
+        data = json.loads(SNOOZE_FILE.read_text())
+    except Exception:
+        return {}
+    now = datetime.now(timezone.utc)
+    cleaned = {}
+    for event_id, entry in data.items():
+        if entry.get("dismissed"):
+            cleaned[event_id] = entry  # dismissed = keep forever
+            continue
+        until = entry.get("until")
+        if until:
+            try:
+                until_dt = datetime.fromisoformat(until)
+                if until_dt.tzinfo is None:
+                    until_dt = until_dt.replace(tzinfo=timezone.utc)
+                if now < until_dt:
+                    cleaned[event_id] = entry  # still active snooze
+                # else: expired — drop it
+            except Exception:
+                pass  # malformed entry — drop it
+    if len(cleaned) != len(data):
+        # Write back cleaned version
         try:
-            return json.loads(SNOOZE_FILE.read_text())
+            SNOOZE_FILE.write_text(json.dumps(cleaned, indent=2))
         except Exception:
             pass
-    return {}
+    return cleaned
 
 
 def save_snoozed(snoozed: dict):

@@ -9,10 +9,21 @@ Backend is selected from config.json: "calendar_backend": "google" | "nextcloud"
 import json
 import os
 import re
+import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
+
+# Python version guard
+if sys.version_info < (3, 8):
+    import sys as _sys
+    print(json.dumps({
+        "error": "python_version_too_old",
+        "detail": f"Python 3.8+ required. You have {sys.version}.",
+        "fix": "Install Python 3.8+: https://www.python.org/downloads/"
+    }))
+    _sys.exit(1)
 
 SKILL_DIR = Path.home() / ".openclaw/workspace/skills/proactive-agent"
 CONFIG_FILE = SKILL_DIR / "config.json"

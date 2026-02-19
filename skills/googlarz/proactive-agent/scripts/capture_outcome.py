@@ -18,8 +18,18 @@ import json
 import os
 import re
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Python version guard
+if sys.version_info < (3, 8):
+    print(json.dumps({
+        "error": "python_version_too_old",
+        "detail": f"Python 3.8+ required. You have {sys.version}.",
+        "fix": "Install Python 3.8+: https://www.python.org/downloads/"
+    }))
+    sys.exit(1)
 
 SKILL_DIR = Path.home() / ".openclaw/workspace/skills/proactive-agent"
 CONFIG_FILE = SKILL_DIR / "config.json"
@@ -45,28 +55,44 @@ def save_local(outcome, notes_path):
     return str(filename)
 
 
+def _applescript_escape(s: str) -> str:
+    """Escape a string for safe embedding in an AppleScript quoted string."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def save_apple_notes(outcome):
+    import tempfile
     title = f"🦞 {outcome['event_title']} — {outcome['event_datetime'][:10]}"
     items = "\n".join(f"• {item}" for item in outcome.get("action_items", []))
-    body = f"""Event: {outcome['event_title']}
-Date: {outcome['event_datetime'][:10]}
-Sentiment: {outcome.get('sentiment', 'neutral')}
+    body = (
+        f"Event: {outcome['event_title']}\n"
+        f"Date: {outcome['event_datetime'][:10]}\n"
+        f"Sentiment: {outcome.get('sentiment', 'neutral')}\n\n"
+        f"Notes:\n{outcome.get('outcome_notes', '')}\n\n"
+        f"Action Items:\n{items if items else 'None'}\n\n"
+        f"Follow-up needed: {outcome.get('follow_up_needed', False)}\n"
+        f"Tags: {', '.join(outcome.get('tags', []))}\n"
+    )
+    # Write body to a temp file to avoid any injection via string interpolation
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as tf:
+        tf.write(body)
+        tmp_path = tf.name
 
-Notes:
-{outcome.get('outcome_notes', '')}
-
-Action Items:
-{items if items else 'None'}
-
-Follow-up needed: {outcome.get('follow_up_needed', False)}
-Tags: {', '.join(outcome.get('tags', []))}
-"""
+    safe_title = _applescript_escape(title)
+    safe_path = _applescript_escape(tmp_path)
     script = f'''
+set noteBody to (read POSIX file "{safe_path}" as «class utf8»)
 tell application "Notes"
-    make new note at folder "Notes" with properties {{name:"{title}", body:"{body.replace('"', "'")}"}}
+    make new note at folder "Notes" with properties {{name:"{safe_title}", body:noteBody}}
 end tell
 '''
-    subprocess.run(["osascript", "-e", script], check=True)
+    try:
+        subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
 
 
 def main():
@@ -75,7 +101,10 @@ def main():
     parser.add_argument("--event-datetime", required=True)
     parser.add_argument("--recurring-id", default="")
     parser.add_argument("--notes", default="")
-    parser.add_argument("--action-items", default="")
+    parser.add_argument("--action-items", default="",
+                        help="Pipe-separated list OR use --action-items-json for items containing pipes")
+    parser.add_argument("--action-items-json", default="",
+                        help="JSON array string, e.g. '[\"item 1\", \"item 2\"]'")
     parser.add_argument("--sentiment", choices=["positive", "neutral", "negative"], default="neutral")
     parser.add_argument("--follow-up-needed", choices=["true", "false"], default="false")
     parser.add_argument("--tags", default="")
@@ -83,7 +112,16 @@ def main():
 
     config = load_config()
 
-    action_items = [i.strip() for i in args.action_items.split("|") if i.strip()] if args.action_items else []
+    if args.action_items_json:
+        try:
+            action_items = json.loads(args.action_items_json)
+            if not isinstance(action_items, list):
+                raise ValueError("action-items-json must be a JSON array")
+        except (json.JSONDecodeError, ValueError) as e:
+            print(json.dumps({"error": "invalid_action_items_json", "detail": str(e)}))
+            sys.exit(1)
+    else:
+        action_items = [i.strip() for i in args.action_items.split("|") if i.strip()] if args.action_items else []
     tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
 
     outcome = {

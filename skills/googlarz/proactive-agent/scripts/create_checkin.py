@@ -13,6 +13,16 @@ Usage:
 import argparse
 import json
 import sys
+
+# Python version guard
+if sys.version_info < (3, 8):
+    print(json.dumps({
+        "error": "python_version_too_old",
+        "detail": f"Python 3.8+ required. You have {sys.version}.",
+        "fix": "Install Python 3.8+: https://www.python.org/downloads/"
+    }))
+    sys.exit(1)
+
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
