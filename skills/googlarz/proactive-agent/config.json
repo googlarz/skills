@@ -1,0 +1,14 @@
+{
+  "pre_checkin_offset_default": "1 day",
+  "pre_checkin_offset_same_day": "1 hour",
+  "post_checkin_offset": "30 minutes",
+  "conversation_threshold": 5,
+  "calendar_threshold": 6,
+  "feature_conversation": true,
+  "feature_calendar": true,
+  "default_user_calendar": "",
+  "notes_destination": "local",
+  "notes_path": "~/.openclaw/workspace/skills/proactive-agent/outcomes/",
+  "scan_days_ahead": 7,
+  "openclaw_cal_id": ""
+}
